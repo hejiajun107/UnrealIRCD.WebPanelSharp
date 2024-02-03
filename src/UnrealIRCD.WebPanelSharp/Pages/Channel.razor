@@ -1,0 +1,88 @@
+﻿@page "/Channel"
+@using Microsoft.Extensions.Options
+@using UrealIRCD.JPRC.Client
+@using UrealIRCD.JPRC.Client.Model
+@using UnrealIRCD.WebPanelSharp
+
+
+<PageContainer Title="频道">
+    <Content>
+
+    </Content>
+    <ExtraContent>
+        <Button Icon="reload" OnClick="Refresh"></Button>
+    </ExtraContent>
+    <ChildContent>
+        <div class="main__b__2">
+            <div class="leftMenu">
+                <Menu Mode="MenuMode.Inline"
+                      SelectedKeys="new []{_selectedKey}"
+                      OnMenuItemClicked="SelectKey">
+                    @foreach (var channel in Channels)
+                    {
+                        <MenuItem Key="@channel.Name">@($"{channel.Name.Substring(1)} ({channel.NumUsers})")</MenuItem>
+                    }
+                </Menu>
+            </div>
+            <div class="right__b__0">
+                @foreach(var user in Users)
+                {
+                    <UserItem Data="user" Channel="@_selectedKey"></UserItem>
+                }
+            </div>
+        </div>
+    </ChildContent>
+</PageContainer>
+
+@code {
+    [Inject] JRPCClient Client { get; set; }
+
+    private List<UserClient> Users { get; set; } = new List<UserClient>();
+
+    private string _selectedKey = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        Channels = await Client.ChannelApi.List();
+        if (Channels.Count() > 0)
+        {
+            _selectedKey = Channels.FirstOrDefault().Name;
+            var detail = await Client.ChannelApi.Get(Channels.FirstOrDefault().Name.Substring(1));
+            Users = detail.Channel?.Members ?? new List<UserClient>() ;
+        }
+        await base.OnInitializedAsync();
+    }
+
+    private List<UrealIRCD.JPRC.Client.Model.Channel> Channels { get; set; } = new List<UrealIRCD.JPRC.Client.Model.Channel>();
+
+    private async Task SelectKey(MenuItem item)
+    {
+        _selectedKey = item.Key;
+        await Refresh();
+    }
+
+    private async Task Refresh()
+    {
+        Channels = await Client.ChannelApi.List();
+        if (!Channels.Where(x=>x.Name == _selectedKey).Any())
+        {
+            if (Channels.Count() > 0)
+            {
+                _selectedKey = Channels.FirstOrDefault().Name;
+            }
+        }
+
+        if (Channels.Count() > 0)
+        {
+            var detail = await Client.ChannelApi.Get(_selectedKey.Substring(1));
+            Users = detail.Channel?.Members ?? new List<UserClient>();
+        }
+        else
+        {
+            Users = new List<UserClient>();
+        }
+
+        StateHasChanged();
+    }
+}
+ 

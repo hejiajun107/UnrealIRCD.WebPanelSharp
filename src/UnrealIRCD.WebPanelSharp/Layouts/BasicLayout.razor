@@ -1,0 +1,227 @@
+﻿@namespace UnrealIRCD.WebPanelSharp
+@using Microsoft.AspNetCore.Authentication
+@using Microsoft.AspNetCore.Authentication.Cookies
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Http
+@using Microsoft.AspNetCore.Identity
+@using System.Security.Claims
+@using System.Web
+@using UnrealIRCD.WebPanelSharp.Data
+@using UnrealIRCD.WebPanelSharp.Data.Entity
+@using UnrealIRCD.WebPanelSharp.Layouts
+@using UnrealIRCD.WebPanelSharp.Models
+@inherits LayoutComponentBase
+@inject ModalService _modalService
+@inject IMessageService _messageService
+@inject HttpClient _httpClient
+@inject NavigationManager navigation
+
+<AntDesign.ProLayout.BasicLayout 
+    Logo="@("https://gw.alipayobjects.com/zos/rmsportal/KDpgvguMpGfqaHPjicRK.svg")"
+    MenuData="_menuData">
+    <RightContentRender>
+        <AuthorizeView>
+            <AvatarDropdown Name="@(authenticationStateTask.Result.User.Identity.Name)"
+                Avatar="@("https://gw.alipayobjects.com/zos/rmsportal/KDpgvguMpGfqaHPjicRK.svg")"
+                MenuItems="@_avatarMenuItems"
+                OnItemSelected="OnDropDownMenuClick" />
+        </AuthorizeView>
+    </RightContentRender>
+    <ChildContent>
+        <AuthorizeView>
+            @Body
+        </AuthorizeView>
+        <NotAuthorize>
+            <Result Status="401"
+                    Title="401"
+                    SubTitle="Sorry, you are not authorized to access this page.">
+                <Extra>
+                    <Button Type="primary" OnClick="LoginClick">去登录</Button>
+                </Extra>
+            </Result>
+        </NotAuthorize>
+    </ChildContent>
+    <FooterRender>
+        <FooterView Copyright="2021 Ant Design Blazor" Links="Links"></FooterView>
+    </FooterRender>
+</AntDesign.ProLayout.BasicLayout>
+<SettingDrawer />
+
+@code
+{
+    [CascadingParameter]
+    private Task<AuthenticationState> authenticationStateTask { get; set; }
+
+    [Inject] ApplicationDataContext DbContext { get; set; }
+
+    private AvatarMenuItem[] _avatarMenuItems =
+    {
+        new() { Key = "password", IconType = "setting", Option = "修改密码"},
+        new() { IsDivider = true },
+        new() { Key = "logout", IconType = "logout", Option = "退出登录"}
+    };
+
+    private MenuDataItem[] _menuData =
+    {
+        new MenuDataItem
+        {
+            Path = "/",
+            Name = "概览",
+            Key = "welcome",
+            Icon = "smile",
+        },
+        new MenuDataItem
+        {
+            Path = "/admin",
+            Name = "系统用户",
+            Key = "admin",
+            Icon = "fork",
+        },
+        new MenuDataItem
+        {
+            Path = "/Channel",
+            Name = "频道",
+            Key = "Channel",
+            Icon = "partition",
+        },
+        new MenuDataItem
+        {
+            Path = "/Client",
+            Name = "用户",
+            Key = "Client",
+            Icon = "team",
+        },
+        new MenuDataItem
+        {
+            Path = "/ServerBan",
+            Name = "封禁",
+            Key = "ServerBan",
+            Icon = "audio-muted",
+        },
+        new MenuDataItem
+        {
+            Path = "/SpamFilter",
+            Name = "拦截",
+            Key = "SpamFilter",
+            Icon = "safety",
+        }
+    };
+
+    public LinkItem[] Links { get; set; } =
+    {
+        new LinkItem
+        {
+            Key = "Ant Design Blazor",
+            Title = "Ant Design Blazor",
+            Href = "https://antblazor.com",
+            BlankTarget = true,
+        },
+        new LinkItem
+        {
+            Key = "github",
+            Title = (RenderFragment)(@<Icon Type="github" />),
+            Href = "https://github.com/ant-design-blazor/ant-design-pro-blazor",
+            BlankTarget = true,
+        },
+        new LinkItem
+        {
+            Key = "Blazor",
+            Title = "Blazor",
+            Href = "https://dotnet.microsoft.com/apps/aspnet/web-apps/blazor?WT.mc_id=DT-MVP-5003987",
+            BlankTarget = true,
+        }
+    };
+
+    public ChangePasswordModel passwordModel = new ChangePasswordModel();
+
+    private ModalRef modalRef;
+
+    private RenderFragment resetPasswordForm =>
+    @<Form Model="passwordModel">
+        <FormItem NoStyle>
+            <LabelTemplate>
+                <label>密码</label>
+            </LabelTemplate>
+            <ChildContent>
+                <Input Type="password" @bind-Value="context.Password" Placeholder="请输入新密码" />
+            </ChildContent>
+        </FormItem>
+        <FormItem NoStyle>
+            <LabelTemplate>
+                <label>确认密码</label>
+            </LabelTemplate>
+            <ChildContent>
+                <Input Type="password" @bind-Value="context.ConfirmPassword" Placeholder="请再次输入新密码" />
+            </ChildContent>
+        </FormItem>
+    </Form>
+    ;
+
+
+    private async Task OnDropDownMenuClick(MenuItem item)
+    {
+        if (item.Key == "logout")
+        {
+            await LogOutClick();
+        }else if(item.Key == "password")
+        {
+            await ShowChangePassword();
+        }
+    }
+
+    private async Task LoginClick()
+    {
+        navigation.NavigateTo($"/Account/SignIn?returnUrl={HttpUtility.UrlEncode(navigation.Uri)}",true);
+    }
+
+    private async Task LogOutClick()
+    {
+        navigation.NavigateTo($"/Account/LogOut?returnUrl={HttpUtility.UrlEncode(navigation.Uri)}", true);
+    }
+
+    private async Task ShowChangePassword()
+    {
+        passwordModel = new ChangePasswordModel();
+        modalRef = await _modalService.CreateModalAsync(new ModalOptions()
+            {
+                OkText = "确认",
+                CancelText = "取消",
+                Title = "更改密码",
+                Content = resetPasswordForm,
+                OnOk = async e =>
+                {
+                    if (string.IsNullOrWhiteSpace(passwordModel.Password))
+                    {
+                        _messageService.Error("请输入新密码",3);
+                        return;
+                    }
+
+                    if (passwordModel.Password != passwordModel.ConfirmPassword)
+                    {
+                        _messageService.Error("两次密码输入不一致", 3);
+                        return;
+                    }
+
+                    var identity = authenticationStateTask.Result.User.Identity;
+
+                    if (!identity.IsAuthenticated)
+                    {
+                        _messageService.Error("请重新登录", 3);
+                        return;
+                    }
+
+                    var name = identity.Name;
+                    var account = DbContext.Set<SysUser>().Where(x => x.Name == name).FirstOrDefault();
+
+                    if(account is not null)
+                    {
+                        account.Password = passwordModel.Password;
+                        await DbContext.SaveChangesAsync();
+                    }
+
+                    await modalRef.CloseAsync();
+                    _messageService.Success("更改成功", 3);
+                } 
+            });
+    }
+}

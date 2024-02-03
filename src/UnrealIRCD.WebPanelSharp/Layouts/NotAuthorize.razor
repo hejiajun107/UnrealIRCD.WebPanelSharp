@@ -1,0 +1,14 @@
+﻿@using Microsoft.AspNetCore.Components.Authorization
+
+@if (!authenticationStateTask.Result.User.Identity.IsAuthenticated)
+{
+    @ChildContent
+}
+
+@code {
+    [CascadingParameter]
+    private Task<AuthenticationState> authenticationStateTask { get; set; }
+
+    [Parameter]
+    public RenderFragment ChildContent { get; set; }
+}

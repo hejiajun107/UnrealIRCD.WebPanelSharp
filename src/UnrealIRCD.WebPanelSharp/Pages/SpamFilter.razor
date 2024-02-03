@@ -1,0 +1,168 @@
+﻿@page "/SpamFilter"
+@using UnrealIRCD.WebPanelSharp.Models
+@using UrealIRCD.JPRC.Client
+@using UrealIRCD.JPRC.Client.Model
+@inject ModalService _modalService
+@inject IMessageService _message
+
+<PageContainer Title="拦截">
+    <Content>
+        <Search Class="extraContentSearch" Placeholder="请输入..." @bind-Value="_search" OnSearch="LoadData" />
+    </Content>
+    <ExtraContent>
+        <Button Type="@ButtonType.Primary" Icon="plus-circle" OnClick="()=>AddNew()">添加</Button>
+        <Button Icon="reload" OnClick="Refresh"></Button>
+    </ExtraContent>
+    <ChildContent>
+        <Table TItem="UrealIRCD.JPRC.Client.Model.SpamFilter"
+               DataSource="@banDatas"
+               Total="_total"
+               Loading="_loading"
+               @bind-PageIndex="_pageIndex"
+               @bind-PageSize="_pageSize"
+               Size="TableSize.Small">
+            <PropertyColumn Title="名称" Property="c=>c.Name" />
+            <PropertyColumn Title="设置时间" Property="c=>c.SetAt">
+                <span>@(context.SetAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm ss"))</span>
+            </PropertyColumn>
+            <PropertyColumn Title="匹配类型" Property="c=>c.MatchType">
+                <span>@(context.MatchType.ToString())</span>
+            </PropertyColumn>
+            <PropertyColumn Title="理由" Property="c=>c.Reason" />
+            <PropertyColumn Title="类型" Property="c=>c.BanAction">
+                <span>@(context.BanAction.ToString())</span>
+            </PropertyColumn>
+            <ActionColumn Title="操作">
+                <Space>
+                    <SpaceItem>
+                        <Popconfirm Title="是否确认删除这条规则?"
+                                    OnConfirm="()=>OnDelete(context)"
+                                    OkText="确认"
+                                    CancelText="取消">
+                            <Tooltip Placement="@Placement.Top" Title="@("删除")">
+                                <Button Danger Type="@ButtonType.Link" Icon="delete">
+                                 </Button>
+                             </Tooltip>
+                         </Popconfirm>
+
+                     </SpaceItem>
+                 </Space>
+             </ActionColumn>
+         </Table>
+     </ChildContent>
+ </PageContainer>
+
+ @code {
+
+    List<UrealIRCD.JPRC.Client.Model.SpamFilter> banDatas;
+
+    [Inject] JRPCClient IRCClient { get; set; }
+
+    private ModalRef modalRef = null;
+
+    private string _search;
+    bool _loading = false;
+
+    int _pageIndex = 1;
+    int _pageSize = 50;
+    int _total;
+
+    SpamRule rule = new SpamRule();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+        await base.OnInitializedAsync();
+    }
+
+    private async Task LoadData()
+    {
+        _loading = true;
+        var bans = await IRCClient.SpamApi.List();
+        if (!string.IsNullOrWhiteSpace(_search))
+        {
+            bans = bans.Where(x => x.Name.Contains(_search)).ToList();
+        }
+        _total = bans.Count();
+        banDatas = bans.Skip((_pageIndex - 1) * _pageSize).Take(_pageSize).ToList();
+        _loading = false;
+        StateHasChanged();
+    }
+
+    private async Task Refresh()
+    {
+        await LoadData();
+    }
+
+    private async Task OnDelete(UrealIRCD.JPRC.Client.Model.SpamFilter context)
+    {
+        await IRCClient.SpamApi.Delete(context.Name, context.BanAction, context.MatchType);
+        await LoadData();
+        await _message.Success("操作成功", 3);
+    }
+
+
+    public async void AddNew()
+    {
+        rule = new SpamRule();
+        modalRef = await _modalService.CreateModalAsync(new ModalOptions()
+                {
+                    Title = "新建",
+                    OkText = "确认",
+                    CancelText = "取消",
+                    MaskClosable = false,
+                    Content =
+                        @<Form Model="rule">
+                            <FormItem NoStyle>
+                                <LabelTemplate>
+                                    <label>名称/规则</label>
+                                </LabelTemplate>
+                                <ChildContent>
+                                    <Input @bind-Value="context.Name" Placeholder="请输入禁止的名称" DebounceMilliseconds=1000  />
+                                </ChildContent>
+                            </FormItem>
+                            <FormItem NoStyle>
+                                <LabelTemplate>
+                                    <label>模式</label>
+                                </LabelTemplate>
+                                <ChildContent>
+                                    <EnumSelect TEnum="SpamMatchType" @bind-Value="context.MatchType" />
+                                </ChildContent>
+                            </FormItem>
+                            <FormItem NoStyle>
+                                <LabelTemplate>
+                                    <label>类型</label>
+                                </LabelTemplate>
+                                <ChildContent>
+                                    <EnumSelect TEnum="BanAction" @bind-Value="context.Type" />
+                                </ChildContent>
+                            </FormItem>
+                            <FormItem NoStyle>
+                                <LabelTemplate>
+                                    <label>理由</label>
+                                </LabelTemplate>
+                                <ChildContent>
+                                    <Input @bind-Value="context.Reason" Placeholder="请输入禁止的理由" DebounceMilliseconds=1000 />
+                                </ChildContent>
+                            </FormItem>
+                        </Form>
+            ,
+            OnOk = async e =>
+            {
+                if (modalRef is not null)
+                {
+                    if (string.IsNullOrWhiteSpace(rule.Name) || string.IsNullOrWhiteSpace(rule.Reason))
+                    {
+                        await _message.Error("请填写完整", 3);
+                        return;
+                    }
+
+                    await IRCClient.SpamApi.Add(rule.Name, rule.MatchType, rule.Type, rule.Reason, 0);
+                    await modalRef.CloseAsync();
+                    await _message.Success("操作成功", 3);
+                    await LoadData();
+                }
+            }
+        });
+    }
+}

@@ -1,0 +1,131 @@
+﻿@using System.Diagnostics.CodeAnalysis
+@using UnrealIRCD.WebPanelSharp.Models
+@using UrealIRCD.JPRC.Client
+@using UrealIRCD.JPRC.Client.Model
+@namespace UnrealIRCD.WebPanelSharp
+@inherits ComponentBase
+@inject ModalService _modalService
+@inject IMessageService _message
+
+<span>
+    <Icon Type="user" Theme="outline" />
+    @($"{Data.Name} ({Data.Id})")
+</span>
+<span>
+    <Tooltip Placement="@Placement.Top" Title="@("踢出")">
+        <Button Class="btn-extra-small" Type="@ButtonType.Link" Size="@ButtonSize.Small">
+            <Icon Class="icon-extra-small" Type="user-delete" Theme="outline" OnClick="OnKickClick" />
+        </Button>
+    </Tooltip>
+    <Tooltip Placement="@Placement.Top" Title="@("封禁")">
+        <Button Class="btn-extra-small" Type="@ButtonType.Link" Size="@ButtonSize.Small">
+            <Icon Class="icon-extra-small" Type="audio-muted" Theme="outline" OnClick="OnBanClick" />
+        </Button>
+    </Tooltip>
+</span>
+　
+
+
+@code {
+    [Parameter]
+    [NotNull]
+    public UserClient Data{ get; set; }
+
+    [Parameter]
+    public string Channel { get; set; }
+
+    [Inject] JRPCClient Client { get; set; }
+
+
+    private BanActionPara BanPara = new BanActionPara();
+
+    private ModalRef modalRef = null;
+
+    public async void OnKickClick()
+    {
+        BanPara.Reason = null;
+        modalRef = await _modalService.CreateModalAsync(new ModalOptions()
+        {
+            Title = "踢出",
+            OkText = "确认",
+            CancelText = "取消",
+            Content =       @<Form Model="BanPara">
+                                <FormItem NoStyle>
+                                    <LabelTemplate>
+                                        <label>理由</label>
+                                    </LabelTemplate>
+                                    <ChildContent>
+                                        <Input @bind-Value="context.Reason" Placeholder="请输入踢出的理由" />
+                                    </ChildContent>
+                                </FormItem>
+                            </Form>
+    ,
+            OnOk = async e => await Kick()
+        });
+    }
+
+    public async void OnBanClick()
+    {
+        BanPara.Reason = null;
+        BanPara.ExpiredAt = null;
+        modalRef = await _modalService.CreateModalAsync(new ModalOptions()
+                {
+                    Title = "封禁",
+                    OkText = "确认",
+                    CancelText = "取消",
+                    Content =  @<Form Model="BanPara">
+                                    <FormItem NoStyle>
+                                        <LabelTemplate>
+                                            <label>理由</label>
+                                        </LabelTemplate>
+                                        <ChildContent>
+                                            <Input @bind-Value="context.Reason" Placeholder="请输入封禁的理由" />
+                                        </ChildContent>
+                                    </FormItem>
+                                    <FormItem NoStyle>
+                                        <LabelTemplate>
+                                            <label>时间</label>
+                                        </LabelTemplate>
+                                        <ChildContent>
+                                            <DatePicker @bind-Value="context.ExpiredAt" TValue="DateTime?" ShowTime="@true" Format="yyyy-MM-dd HH:mm ss" Placeholder="@("请选择解封时间")" />
+                                        </ChildContent>
+                                    </FormItem>
+                                </Form>
+    ,
+                        OnOk = async e =>  await Ban()
+                }
+        );
+    }
+
+    public async Task Kick()
+    {
+        if(string.IsNullOrWhiteSpace(BanPara.Reason))
+            BanPara.Reason = "no reason";
+
+        if(string.IsNullOrWhiteSpace(Channel))
+            await Client.UserApi.Kill(Data.Id, BanPara.Reason);
+        else
+            await Client.ChannelApi.Kick(Channel.Substring(1), Data.Name, BanPara.Reason);
+
+        if (modalRef is not null)
+            await modalRef.CloseAsync();
+            
+        await _message.Success("操作成功", 3);
+    }
+
+    public async Task Ban()
+    {
+        if (string.IsNullOrWhiteSpace(BanPara.Reason))
+            BanPara.Reason = "no reason";
+
+        await Client.UserApi.Kill(Data.Id, BanPara.Reason);
+        await Client.ServerApi.BanAdd(Data.Name, BanAction.KLINE, BanPara.ExpiredAt?? DateTime.Now.AddHours(2), BanPara.Reason);
+        
+        if (modalRef is not null)
+            await modalRef.CloseAsync();
+        
+        await _message.Success("操作成功", 3);
+    }
+
+
+}

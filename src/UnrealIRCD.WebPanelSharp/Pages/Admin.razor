@@ -1,0 +1,335 @@
+﻿@page "/Admin"
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.Extensions.Options
+@using UnrealIRCD.WebPanelSharp.Data
+@using UnrealIRCD.WebPanelSharp.Data.Entity
+@using UnrealIRCD.WebPanelSharp.Models
+@using UrealIRCD.JPRC.Client
+@using UrealIRCD.JPRC.Client.Model
+@using UnrealIRCD.WebPanelSharp
+@inject ModalService _modalService
+@inject IMessageService _message
+
+@if (authenticationStateTask.Result.User.Identity.IsAuthenticated && authenticationStateTask.Result.User.Identity.Name == "root")
+{
+    <PageContainer Title="系统用户">
+        <Content>
+            <Search Class="extraContentSearch" Placeholder="请输入..." @bind-Value="_search" OnSearch="LoadData" />
+        </Content>
+        <ExtraContent>
+            <Button Type="@ButtonType.Primary" Icon="plus-circle" OnClick="()=>AddNew()">添加</Button>
+            <Button Icon="reload" OnClick="Refresh"></Button>
+        </ExtraContent>
+        <ChildContent>
+            <Table TItem="SysUser"
+                   DataSource="@admins"
+                   Total="_total"
+                   Loading="_loading"
+                   @bind-PageIndex="_pageIndex"
+                   @bind-PageSize="_pageSize"
+                   Size="TableSize.Small">
+                <PropertyColumn Property="c=>c.Id" />
+                <PropertyColumn Title="账号" Property="c=>c.Name" />
+                <ActionColumn Title="操作">
+                    <Space>
+                        <SpaceItem>
+                            <Tooltip Placement="@Placement.Top" Title="@("编辑")">
+                                <Button Type="@ButtonType.Link" Icon="edit" OnClick="()=>OnEditClick(context.Id)">
+                                </Button>
+                            </Tooltip>
+                        </SpaceItem>
+                        <SpaceItem>
+                            <Tooltip Placement="@Placement.Top" Title="@("删除")">
+                                <Button Danger Type="@ButtonType.Link" Icon="delete" OnClick="()=>OnDeleteClick(context.Id)">
+                                 </Button>
+                             </Tooltip>
+                         </SpaceItem>
+                     </Space>
+                 </ActionColumn>
+             </Table>
+         </ChildContent>
+     </PageContainer>
+}
+else
+{
+    <Result Status="403"
+            Title="403"
+            SubTitle="Sorry, you are not authorized to access this page.">
+        <Extra>
+            <p></p>
+        </Extra>
+    </Result>
+}
+
+
+
+
+ @code {
+
+    [CascadingParameter]
+    private Task<AuthenticationState> authenticationStateTask { get; set; }
+
+    List<SysUser> admins;
+    [Inject] ApplicationDataContext dbconext { get; set; }
+
+    private ModalRef modalRef = null;
+
+    private string _search;
+    bool _loading = false;
+
+    int _pageIndex = 1;
+    int _pageSize = 50;
+    int _total;
+
+    private SysUserEdit editModel = new SysUserEdit();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+        await base.OnInitializedAsync();
+    }
+
+    private async Task LoadData()
+    {
+        _loading = true;
+        var query = dbconext.Set<SysUser>().Where(x => 1 == 1);
+        if (!string.IsNullOrWhiteSpace(_search))
+        {
+            query = query.Where(x => x.Name.Contains(_search));
+        }
+        _total = query.Count();
+        admins = query.Skip((_pageIndex - 1) * _pageSize).Take(_pageSize).OrderBy(x=>x.Id).ToList();
+        _loading = false;
+    }
+
+    private async Task Refresh()
+    {
+        await LoadData();
+        StateHasChanged();
+    }
+
+    private RenderFragment editRenderFragment =>
+    @<Form Model="editModel">
+        <FormItem NoStyle>
+            <LabelTemplate>
+                <label>账号</label>
+            </LabelTemplate>
+            <ChildContent>
+                <Input @bind-Value="context.Name" Placeholder="请输入账号" DebounceMilliseconds=1000 />
+            </ChildContent>
+        </FormItem>
+        <FormItem NoStyle>
+            <LabelTemplate>
+                <label>密码</label>
+            </LabelTemplate>
+            <ChildContent>
+                <Input @bind-Value="context.Password" Placeholder="请输入密码" DebounceMilliseconds=1000 />
+            </ChildContent>
+        </FormItem>
+        <FormItem NoStyle>
+            <LabelTemplate>
+                <label>确认密码</label>
+            </LabelTemplate>
+            <ChildContent>
+                <Input @bind-Value="context.ConfirmPassword" Placeholder="确认密码" DebounceMilliseconds=1000 />
+            </ChildContent>
+        </FormItem>
+    </Form>
+    ;
+
+    private async Task OnEditClick(long Id)
+    {
+        var user = dbconext.Set<SysUser>().Find(Id);
+        if(user is null)
+        {
+            _message.Error("用户不存在", 3);
+            return;
+        }
+
+        editModel = new SysUserEdit()
+        {
+            Id = Id,
+            Name = user.Name
+        };
+
+        modalRef = await _modalService.CreateModalAsync(new ModalOptions()
+            {
+                Title = "编辑",
+                OkText = "确认",
+                CancelText = "取消",
+                Content = editRenderFragment,
+                OnOk = async e =>
+                {
+                    var errors = editModel.GetModelErrors();
+                    if (errors.Count() > 0)
+                    {
+                        _message.Error(errors.First(), 3);
+                        return;
+                    }
+
+                    if(user.Name == "root" && user.Name != editModel.Name)
+                    {
+                        _message.Error("无法修改此账号", 3);
+                        return;
+                    }
+
+                    user.Name = editModel.Name;
+
+                    if (!string.IsNullOrWhiteSpace(editModel.Password))
+                    {
+                        user.Password = editModel.Password;
+                    }
+
+                    dbconext.Update(user);
+
+                    try
+                    {
+                        await dbconext.SaveChangesAsync();
+                        _message.Success("修改成功", 3);
+                        await modalRef.CloseAsync();
+                        await LoadData();
+                    }
+                    catch (Exception)
+                    {
+                        _message.Error("修改系统用户失败", 3);
+                        return;
+                    }
+
+                }
+            });
+
+    }
+
+    private async Task OnDeleteClick(long Id)
+    {
+
+    }
+
+    private async Task AddNew()
+    {
+        editModel = new SysUserEdit();
+        modalRef = await _modalService.CreateModalAsync(new ModalOptions()
+            {
+                Title = "新建",
+                OkText = "确认",
+                CancelText = "取消",
+                Content =  editRenderFragment,
+                OnOk = async e =>
+                {
+                    var errors = editModel.GetModelErrors();
+                    if (errors.Count() > 0)
+                    {
+                        _message.Error(errors.First(), 3);
+                        return;
+                    }
+
+                    dbconext.Add(new SysUser()
+                    {
+                        Name = editModel.Name,
+                        Password = editModel.Password
+                    });
+
+                    try
+                    {
+                        await dbconext.SaveChangesAsync();
+                        _message.Success("创建成功", 3);
+                        await modalRef.CloseAsync();
+                        await LoadData();
+                    }
+                    catch (Exception)
+                    {
+                        _message.Error("创建系统用户失败", 3);
+                        return;
+                    }
+                    
+                }
+            });
+    }
+
+    //     private BanActionPara BanPara = new BanActionPara();
+
+    //     public async void OnKickClick(UserClient data)
+    //     {
+    //         BanPara.Reason = null;
+    //         modalRef = await _modalService.CreateModalAsync(new ModalOptions()
+    //             {
+    //                 Title = "踢出",
+    //                 OkText = "确认",
+    //                 CancelText = "取消",
+    //                 Content =
+    //     @<Form Model="BanPara">
+    //         <FormItem NoStyle>
+    //             <LabelTemplate>
+    //                 <label>理由</label>
+    //             </LabelTemplate>
+    //             <ChildContent>
+    //                 <Input @bind-Value="context.Reason" Placeholder="请输入踢出的理由" />
+    //             </ChildContent>
+    //         </FormItem>
+    //     </Form>
+    //         ,
+    //             OnOk = async e => await Kick(data)
+    //         });
+    //     }
+
+    //     public async void OnBanClick(UserClient data)
+    //     {
+    //         BanPara.Reason = null;
+    //         BanPara.ExpiredAt = null;
+    //         modalRef = await _modalService.CreateModalAsync(new ModalOptions()
+    //             {
+    //                 Title = "封禁",
+    //                 OkText = "确认",
+    //                 CancelText = "取消",
+    //                 Content =  @<Form Model="BanPara">
+    //         <FormItem NoStyle>
+    //             <LabelTemplate>
+    //                 <label>理由</label>
+    //             </LabelTemplate>
+    //             <ChildContent>
+    //                 <Input @bind-Value="context.Reason" Placeholder="请输入封禁的理由" />
+    //             </ChildContent>
+    //         </FormItem>
+    //         <FormItem NoStyle>
+    //             <LabelTemplate>
+    //                 <label>时间</label>
+    //             </LabelTemplate>
+    //             <ChildContent>
+    //                 <DatePicker @bind-Value="context.ExpiredAt" TValue="DateTime?" ShowTime="@true" Format="yyyy-MM-dd HH:mm ss" Placeholder="@("请选择解封时间")" />
+    //             </ChildContent>
+    //         </FormItem>
+    //     </Form>
+    // ,
+    //         OnOk = async e => await Ban(data)
+    //     }
+    //     );
+    //     }
+
+    //     public async Task Kick(UserClient data)
+    //     {
+    //         if (string.IsNullOrWhiteSpace(BanPara.Reason))
+    //             BanPara.Reason = "no reason";
+
+    //         await IRCClient.UserApi.Kill(data.Id, BanPara.Reason);
+
+    //         if (modalRef is not null)
+    //             await modalRef.CloseAsync();
+
+    //         await _message.Success("操作成功", 3);
+    //     }
+
+    //     public async Task Ban(UserClient data)
+    //     {
+    //         if (string.IsNullOrWhiteSpace(BanPara.Reason))
+    //             BanPara.Reason = "no reason";
+
+    //         await IRCClient.UserApi.Kill(data.Id, BanPara.Reason);
+    //         await IRCClient.ServerApi.BanAdd(data.Name, BanAction.KLINE, BanPara.ExpiredAt ?? DateTime.Now.AddHours(2), BanPara.Reason);
+
+    //         if (modalRef is not null)
+    //             await modalRef.CloseAsync();
+
+    //         await _message.Success("操作成功", 3);
+    //     }
+
+}

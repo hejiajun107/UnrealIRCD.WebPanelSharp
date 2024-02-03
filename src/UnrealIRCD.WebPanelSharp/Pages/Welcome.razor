@@ -1,0 +1,51 @@
+﻿@page "/"
+
+<PageContainer Title="概览">
+    <Card>
+        <Alert Message="@hello"
+            Type="success"
+            ShowIcon="true"
+            Banner
+            Style="margin: -12px; margin-bottom: 24px"/>
+      @*<Text Strong>
+            <a target="_blank" rel="noopener noreferrer" href="https://www.nuget.org/packages/AntDesign.Templates">
+                Use .NET CLI to install the latest template quickly.
+            </a>
+        </Text>
+        <pre class="pre"><code><Text Copyable> dotnet new --install AntDesign.Templates::0.1.0-*</Text></code></pre>
+        <Text
+            Strong
+            Style="margin-bottom: 12px">
+            <a target="_blank" rel="noopener noreferrer" href="https://github.com/ant-design-blazor/ant-design-pro-blazor">
+               Create an empty server-side Blazor project.
+            </a>
+        </Text>
+        <pre class="pre"><code><Text Copyable> dotnet new antdesign --host=server</Text></code></pre>
+        <Text
+            Strong
+            Style="margin-bottom: 12px">
+            <a target="_blank" rel="noopener noreferrer" href="https://github.com/ant-design-blazor/ant-design-pro-blazor">
+                Create an empty server-side Blazor project with all pages.
+            </a>
+        </Text>
+        <pre class="pre"><code><Text Copyable> dotnet new antdesign --host=server --full</Text></code></pre> *@
+    </Card>
+</PageContainer>
+
+ @code{
+    string hello
+    {
+        get
+        {
+            var hour = DateTime.Now.Hour;
+            if(hour>0 && hour < 11)
+                return "早上好";
+            else if (hour>11 && hour <= 13)
+                return "中午好";
+            else if(hour>13 && hour < 17)
+                return "下午好";
+            else
+                return "晚上好";
+        }
+    }
+}

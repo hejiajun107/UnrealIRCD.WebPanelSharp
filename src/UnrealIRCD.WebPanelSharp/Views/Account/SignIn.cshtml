@@ -1,0 +1,66 @@
+﻿@{
+    Layout = null;
+}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>登录</title>
+    <link href="/_content/AntDesign/css/ant-design-blazor.css" rel="stylesheet" />
+    <link href="/_content/AntDesign.ProLayout/css/ant-design-pro-layout-blazor.css" rel="stylesheet" />
+    <link href="/css/site.css" rel="stylesheet" />
+    <link href="/UnrealIRCD.WebPanelSharp.styles.css" rel="stylesheet" />
+</head>
+<body style="background-color:#eee">
+    <div style="display: flex;justify-content: center;align-items:center;height:100%">
+        <div style="width:360px;padding:30px;background-color:#fff;border-radius:5px">
+            <div class="ant-spin-container ">
+                <h2>登录</h2>
+                <form class="ant-form ant-form-horizontal" id="ant-blazor-ff2e667a-1b67-477d-8bea-d0be9ef528a4" action="/Account/SignIn" method="post">
+                    <div class=" ant-form-item ant-row" style="row-gap: 0px;  " id="ant-blazor-9f7461ce-7a0a-4e54-95a1-117c2e4559c3" _bl_53ca12f1-e219-4b54-9fad-db959f894187="">
+                        <div class="ant-form-item-label ant-col" style="  " id="ant-blazor-0f8520d1-6269-4b1c-916b-1023332bf5e6" _bl_53bf1090-eaa0-4d5f-828e-9199c7d870ba="">
+                            <label>账号</label>
+                        </div>
+
+                        <div class="ant-form-item-control ant-col" style="  " id="ant-blazor-7939c5b9-9eed-4688-871b-90463a60e70f" _bl_a102a54f-4cdf-44d1-a6e6-c5448254f76d="">
+                            <div class="ant-form-item-control-input">
+                                <div class="ant-form-item-control-input-content">
+                                    <input name="name" class="ant-input" id="ant-blazor-c2d98ff9-58c3-46ff-a621-aafd8c5a5952" type="text" placeholder="请输入账号" _bl_0af6e97f-ff9b-4be4-b48d-3e9d22527a00="">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class=" ant-form-item ant-row" style="row-gap: 0px;  " id="ant-blazor-0655607b-81f6-454f-bd8a-b8a9b3c83074" _bl_d6de45db-ff16-44e5-a198-7642630a7067="">
+                        <div class="ant-form-item-label ant-col" style="  " id="ant-blazor-2a70d87d-87fa-4c18-8f6c-ec86bf5ae49b" _bl_884f257c-18c9-4bc8-aa04-453fd2ec3dba="">
+                            <label>密码</label>
+                        </div>
+                        <div class="ant-form-item-control ant-col" style="  " id="ant-blazor-cb00fd39-2a44-499f-a6e3-7e86026074f4" _bl_cd53ff35-2339-48a2-bb7b-aaf7d1052d10="">
+                            <div class="ant-form-item-control-input">
+                                <div class="ant-form-item-control-input-content">
+                                    <input name="password" class="ant-input" id="ant-blazor-62be118f-8135-4ad2-a046-d0e5ad5cdf56" type="password" placeholder="请输入密码" _bl_4455245b-1880-45b9-b0d8-60bfb1310625="">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div style="text-align:right">
+                        <span style="color:#f00">@ViewBag.Error</span>
+                        <button class="ant-btn ant-btn-primary" id="ant-blazor-2f21971b-26a7-419a-ad05-73070522ebde" type="submit" ant-click-animating-without-extra-node="false" _bl_1ec7a773-43f2-4c57-acb6-ff345518d51e="">
+                            <span>
+                                登录
+                            </span>
+                        </button>
+                    </div>
+
+                    <input type="hidden" name="returnUrl" value="@ViewBag.ReturnUrl" />
+                </form>
+            </div>
+
+        
+        </div>
+    </div>
+   
+</body>
+</html>
